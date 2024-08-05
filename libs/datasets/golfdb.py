@@ -85,10 +85,10 @@ class GolfDB(Dataset):
 
         dict_db = tuple()
         for key, value in annotation_data.items():
-            # feat_file = os.path.join(self.feat_folder,
-            #                          self.file_prefix + key + self.file_ext)
-            # if not os.path.exists(feat_file):
-            #     continue
+            feat_file = os.path.join(self.feat_folder,
+                                     self.file_prefix + key + self.file_ext)
+            if not os.path.exists(feat_file):
+                continue
 
             # get fps if available
             if self.default_fps is not None:
@@ -106,12 +106,16 @@ class GolfDB(Dataset):
 
             # get annotations if available
             segments, labels = [], []
-            events = value["events"]
-            for event_id, (ts, te) in enumerate(zip(events, events[1:])):
-                ts = ts - events[0]
-                te = te - events[0]
+            events = value["events"] # each value in events specifies the frame that one event occurs
+            for event_id, t in enumerate(events[1:-1]):
+                t = t - events[0]
+                ts = (t - 2) / fps
+                te = (t + 2) / fps
                 segments.append((ts, te))
-                labels.append(event_id)
+                labels.append([event_id])
+            
+            segments = np.array(segments, dtype=np.float32)
+            labels = np.squeeze(np.array(labels, dtype=np.int64), axis=1)
 
             dict_db += ({
                 "id": key,
@@ -152,14 +156,16 @@ class GolfDB(Dataset):
             segments, labels = None, None
         
         # return a data dict
-        data_dict = {'video_id'        : video_item['id'],
-                     'feats'           : feats,      # C x T
-                     'segments'        : segments,   # N x 2
-                     'labels'          : labels,     # N
-                     'fps'             : video_item['fps'],
-                     'duration'        : video_item['duration'],
-                     'feat_stride'     : feat_stride,
-                     'feat_num_frames' : self.num_frames}
+        data_dict = {
+            'video_id'        : video_item['id'],
+            'feats'           : feats,      # C x T
+            'segments'        : segments,   # N x 2
+            'labels'          : labels,     # N
+            'fps'             : video_item['fps'],      
+            'duration'        : video_item['duration'],
+            'feat_stride'     : feat_stride,
+            'feat_num_frames' : self.num_frames
+        }
 
         # truncate the features during training
         if self.is_training and (segments is not None):
@@ -169,6 +175,4 @@ class GolfDB(Dataset):
 
         return data_dict
 
-
-            
-    
+              
